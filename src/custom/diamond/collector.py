@@ -5,6 +5,7 @@ The Collector class is a base class for all metric collectors.
 """
 
 import os
+import platform
 import socket
 import platform
 import logging
@@ -91,14 +92,14 @@ def get_hostname(config, method=None):
         return hostname
 
     if method == 'uname_short':
-        hostname = os.uname()[1].split('.')[0]
+        hostname = platform.uname()[1].split('.')[0]
         get_hostname.cached_results[method] = hostname
         if hostname == '':
             raise DiamondException('Hostname is empty?!')
         return hostname
 
     if method == 'uname_rev':
-        hostname = os.uname()[1].split('.')
+        hostname = platform.uname()[1].split('.')
         hostname.reverse()
         hostname = '.'.join(hostname)
         get_hostname.cached_results[method] = hostname
@@ -371,7 +372,7 @@ class Collector(object):
         raise NotImplementedError()
 
     def publish(self, name, value, raw_value=None, precision=0,
-                metric_type='GAUGE', instance=None):
+                metric_type='GAUGE', instance=None, metric_prefix=''):
         """
         Publish a metric with the given name
         """
@@ -394,7 +395,7 @@ class Collector(object):
         try:
             metric = Metric(path, value, raw_value=raw_value, timestamp=None,
                             precision=precision, host=self.get_hostname(),
-                            metric_type=metric_type, ttl=ttl)
+                            metric_type=metric_type, ttl=ttl, metric_prefix=metric_prefix)
         except DiamondException:
             self.log.error(('Error when creating new Metric: path=%r, '
                             'value=%r'), path, value)
@@ -411,13 +412,13 @@ class Collector(object):
         for handler in self.handlers:
             handler._process(metric)
 
-    def publish_gauge(self, name, value, precision=0, instance=None):
+    def publish_gauge(self, name, value, precision=0, instance=None, metric_prefix=''):
         return self.publish(name, value, precision=precision,
-                            metric_type='GAUGE', instance=instance)
+                            metric_type='GAUGE', instance=instance, metric_prefix=metric_prefix)
 
     def publish_counter(self, name, value, precision=0, max_value=0,
                         time_delta=True, interval=None, allow_negative=False,
-                        instance=None):
+                        instance=None, metric_prefix=''):
         raw_value = value
         value = self.derivative(name, value, max_value=max_value,
                                 time_delta=time_delta, interval=interval,
@@ -425,7 +426,7 @@ class Collector(object):
                                 instance=instance)
         return self.publish(name, value, raw_value=raw_value,
                             precision=precision, metric_type='COUNTER',
-                            instance=instance)
+                            instance=instance, metric_prefix=metric_prefix)
 
     def derivative(self, name, new, max_value=0,
                    time_delta=True, interval=None,

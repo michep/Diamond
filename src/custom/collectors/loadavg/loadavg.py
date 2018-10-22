@@ -16,13 +16,13 @@ import multiprocessing
 from diamond.collector import str_to_bool
 
 
-class LoadAverageCollector(diamond.collector.Collector):
+class MFMS_LoadAverageCollector(diamond.collector.Collector):
 
     PROC_LOADAVG = '/proc/loadavg'
     PROC_LOADAVG_RE = re.compile(r'([\d.]+) ([\d.]+) ([\d.]+) (\d+)/(\d+)')
 
     def get_default_config_help(self):
-        config_help = super(LoadAverageCollector,
+        config_help = super(MFMS_LoadAverageCollector,
                             self).get_default_config_help()
         config_help.update({
             'simple':   'Only collect the 1 minute load average'
@@ -33,7 +33,7 @@ class LoadAverageCollector(diamond.collector.Collector):
         """
         Returns the default collector settings
         """
-        config = super(LoadAverageCollector, self).get_default_config()
+        config = super(MFMS_LoadAverageCollector, self).get_default_config()
         config.update({
             'path':     'loadavg',
             'simple':   'False'
@@ -45,15 +45,11 @@ class LoadAverageCollector(diamond.collector.Collector):
         cpu_count = multiprocessing.cpu_count()
 
         if not str_to_bool(self.config['simple']):
-            self.publish_gauge('01', load01, 2)
-            self.publish_gauge('05', load05, 2)
-            self.publish_gauge('15', load15, 2)
-            self.publish_gauge('01_normalized', load01 / cpu_count, 2)
-            self.publish_gauge('05_normalized', load05 / cpu_count, 2)
-            self.publish_gauge('15_normalized', load15 / cpu_count, 2)
+            self.publish_gauge('load1', load01, 2)
+            self.publish_gauge('load5', load05, 2)
+            self.publish_gauge('load15', load15, 2)
         else:
             self.publish_gauge('load', load01, 2)
-            self.publish_gauge('load_normalized', load01 / cpu_count, 2)
 
         # Legacy: add process/thread counters provided by
         # /proc/loadavg (if available).

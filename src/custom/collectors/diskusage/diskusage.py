@@ -26,7 +26,7 @@ except ImportError:
     psutil = None
 
 
-class DiskUsageCollector(diamond.collector.Collector):
+class MFMS_DiskUsageCollector(diamond.collector.Collector):
 
     MAX_VALUES = {
         'reads':                    4294967295,
@@ -42,7 +42,7 @@ class DiskUsageCollector(diamond.collector.Collector):
     LastCollectTime = None
 
     def get_default_config_help(self):
-        config_help = super(DiskUsageCollector, self).get_default_config_help()
+        config_help = super(MFMS_DiskUsageCollector, self).get_default_config_help()
         config_help.update({
             'devices': "A regex of which devices to gather metrics for." +
                        " Defaults to md, sd, xvd, disk, and dm devices",
@@ -55,7 +55,7 @@ class DiskUsageCollector(diamond.collector.Collector):
         """
         Returns the default collector settings
         """
-        config = super(DiskUsageCollector, self).get_default_config()
+        config = super(MFMS_DiskUsageCollector, self).get_default_config()
         config.update({
             'path':     'iostat',
             'devices':  ('PhysicalDrive[0-9]+$' +
@@ -277,4 +277,4 @@ class DiskUsageCollector(diamond.collector.Collector):
                 for key in metrics:
                     metric_name = '.'.join([info['device'], key]).replace(
                         '/', '_')
-                    self.publish(metric_name, metrics[key], precision=3)
+                    self.publish(metric_name, metrics[key], precision=3, metric_prefix=self.path)

@@ -88,7 +88,7 @@ import re
 import contextlib
 
 
-class TSDBHandler(Handler):
+class MFMS_TSDBHandler(Handler):
     """
     Implements the abstract Handler class, sending data to OpenTSDB
     """
@@ -135,12 +135,13 @@ class TSDBHandler(Handler):
 
         self.skipAggregates = self.config['skipAggregates']
         self.cleanMetrics = self.config['cleanMetrics']
+        self.dryRun = int(self.config['dryRun'])
 
     def get_default_config_help(self):
         """
         Returns the help text for the configuration options for this handler
         """
-        config = super(TSDBHandler, self).get_default_config_help()
+        config = super(MFMS_TSDBHandler, self).get_default_config_help()
 
         config.update({
             'host': '',
@@ -154,6 +155,7 @@ class TSDBHandler(Handler):
             'password': '',
             'cleanMetrics': True,
             'skipAggregates': True,
+            'dryRun': False,
         })
 
         return config
@@ -162,7 +164,7 @@ class TSDBHandler(Handler):
         """
         Return the default config for the handler
         """
-        config = super(TSDBHandler, self).get_default_config()
+        config = super(MFMS_TSDBHandler, self).get_default_config()
 
         config.update({
             'host': '127.0.0.1',
@@ -176,6 +178,7 @@ class TSDBHandler(Handler):
             'password': '',
             'cleanMetrics': True,
             'skipAggregates': True,
+            'dryRun': False,
         })
 
         return config
@@ -192,7 +195,8 @@ class TSDBHandler(Handler):
         """
         entry = {'timestamp': metric.timestamp, 'value': metric.value,
                  "tags": {}}
-        entry["tags"]["hostname"] = metric.host
+        entry["tags"]["host"] = metric.host
+        entry["tags"]["plugin_running_on"] = metric.host
 
         if self.cleanMetrics:
             metric = MetricWrapper(metric, self.log)
@@ -230,8 +234,8 @@ class TSDBHandler(Handler):
         """
         retry = 0
         success = False
-        while retry < 3 and success is False:
-            self.log.debug(content)
+        self.log.debug(content)
+        while retry < 3 and success is False and self.dryRun is False:
             try:
                 request = urllib2.Request("http://"+self.host+":" +
                                           str(self.port)+"/api/put",
@@ -255,8 +259,6 @@ class TSDBHandler(Handler):
 """
 This class wraps a metric and applies the additonal OpenTSDB tagging logic.
 """
-
-
 class MetricWrapper(Metric):
 
     def isAggregate(self):
@@ -284,33 +286,29 @@ class MetricWrapper(Metric):
             cpuId = self.delegate.getMetricPath().split('.')[0]
             self.tags["cpuId"] = cpuId
             self.path = self.path.replace("."+cpuId+".", ".")
-    """
-    Processes metrics of the HaProxyCollector. It stores the backend and the
-    server to which the backends send as tags. Counters with 'backend' as
-    backend name are considered aggregates.
-    """
-    def processHaProxyMetric(self):
-        if len(self.getMetricPath().split('.')) == 3:
-            self.aggregate = self.getMetricPath().split('.')[1] == 'backend'
-
-            backend = self.delegate.getMetricPath().split('.')[0]
-            server = self.delegate.getMetricPath().split('.')[1]
-            self.tags["backend"] = backend
-            self.tags["server"] = server
-            self.path = self.path.replace("."+server+".", ".")
-            self.path = self.path.replace("."+backend+".", ".")
 
     """
     Processes metrics of the DiskspaceCollector. It stores the mountpoint as a
     tag. There are no aggregates in this collector.
     """
     def processDiskspaceMetric(self):
-        if len(self.getMetricPath().split('.')) == 2:
+        self.logger.debug('!!!DEBUG processDiskspaceMetric()')
+        self.logger.debug('!!!DEBUG self = %s' % self)
+        self.logger.debug('!!!DEBUG self.path = %s' % self.path)
+        self.logger.debug('!!!DEBUG self.metric_prefix = %s' % self.metric_prefix)
+        self.logger.debug('!!!DEBUG self.getMetricPath().split("prefix") = %s' % self.path.split('.' + self.metric_prefix + '.'))
+        elements = self.path.split('.' + self.metric_prefix + '.')
 
-            mountpoint = self.delegate.getMetricPath().split('.')[0]
+        if len(elements) == 2:
 
-            self.tags["mountpoint"] = mountpoint
+            mountpoint = elements[1].split('.')[0]
+
+            self.tags["mount_point"] = mountpoint
+            self.tags["device"] = "NA"
             self.path = self.path.replace("."+mountpoint+".", ".")
+
+        self.logger.debug('!!!DEBUG NEW self.path = %s' % self.path)
+        self.logger.debug('!!!DEBUG NEW self.tags = %s' % self.tags)
 
     """
     Processes metrics of the DiskusageCollector. It stores the device as a
@@ -321,7 +319,8 @@ class MetricWrapper(Metric):
 
             device = self.delegate.getMetricPath().split('.')[0]
 
-            self.tags["device"] = device
+            self.tags["dev"] = device
+            self.tags["device_id"] = device
             self.path = self.path.replace("."+device+".", ".")
 
     """
@@ -336,34 +335,9 @@ class MetricWrapper(Metric):
             self.tags["interface"] = interface
             self.path = self.path.replace("."+interface+".", ".")
 
-    def processMattermostMetric(self):
-        split = self.getMetricPath().split('.')
-        if len(split) > 2:
-            if split[0] == 'teamdetails' or split[0] == 'channeldetails':
-                team = split[1]
-                self.tags["team"] = team
-                self.path = self.path.replace("."+team+".", ".")
-                # fall through for channeldetails
-            if split[0] == 'channeldetails':
-                channel = split[2]
-                self.tags["channel"] = channel
-                self.path = self.path.replace("."+channel+".", ".")
-            if split[0] == 'userdetails':
-                user = split[1]
-                team = split[2]
-                channel = split[3]
-                self.tags["user"] = user
-                self.tags["team"] = team
-                self.tags["channel"] = channel
-                self.path = self.path.replace("."+user+".", ".")
-                self.path = self.path.replace("."+team+".", ".")
-                self.path = self.path.replace("."+channel+".", ".")
-
-    handlers = {'cpu': processCpuMetric, 'haproxy': processHaProxyMetric,
-                'mattermost': processMattermostMetric,
-                'diskspace': processDiskspaceMetric,
-                'iostat': processDiskusageMetric,
-                'network': processNetworkMetric,
+    handlers = {'intel.psutil.cpu': processCpuMetric,
+                'intel.psutil.disk': processDiskspaceMetric,
+                'intel.psutil.iostat': processDiskusageMetric,
                 'default': processDefaultMetric}
 
     def __init__(self, delegate, logger):
@@ -375,12 +349,13 @@ class MetricWrapper(Metric):
         self.precision = delegate.precision
         self.ttl = delegate.ttl
         self.metric_type = delegate.metric_type
+        self.metric_prefix = delegate.metric_prefix
         self.delegate = delegate
         self.tags = {}
         self.aggregate = False
         self.newMetricName = None
         self.logger = logger
         # call the handler for that collector
-        handler = self.handlers.get(self.getCollectorPath(),
-                                    self.handlers['default'])
+        selector = self.getCollectorPath() if self.metric_prefix == '' else self.metric_prefix
+        handler = self.handlers.get(selector, self.handlers['default'])
         handler(self)

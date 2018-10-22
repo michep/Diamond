@@ -45,12 +45,12 @@ _KEY_MAPPING = [
 ]
 
 
-class MemoryCollector(diamond.collector.Collector):
+class MFMS_MemoryCollector(diamond.collector.Collector):
 
     PROC = '/proc/meminfo'
 
     def get_default_config_help(self):
-        config_help = super(MemoryCollector, self).get_default_config_help()
+        config_help = super(MFMS_MemoryCollector, self).get_default_config_help()
         config_help.update({
             'detailed': 'Set to True to Collect all the nodes',
         })
@@ -60,7 +60,7 @@ class MemoryCollector(diamond.collector.Collector):
         """
         Returns the default collector settings
         """
-        config = super(MemoryCollector, self).get_default_config()
+        config = super(MFMS_MemoryCollector, self).get_default_config()
         config.update({
             'path': 'memory',
             'method': 'Threaded',
@@ -138,32 +138,28 @@ class MemoryCollector(diamond.collector.Collector):
             for unit in self.config['byte_unit']:
                 memory_total = value = diamond.convertor.binary.convert(
                     value=phymem_usage.total, oldUnit=units, newUnit=unit)
-                self.publish('MemTotal', value, metric_type='GAUGE')
+                self.publish('total', value, metric_type='GAUGE')
 
                 memory_available = value = diamond.convertor.binary.convert(
                     value=phymem_usage.available, oldUnit=units, newUnit=unit)
-                self.publish('MemAvailable', value, metric_type='GAUGE')
+                self.publish('available', value, metric_type='GAUGE')
 
                 memory_used = memory_total - memory_available
 
                 memory_used_percent = Decimal(str(100.0 *
                                               memory_used /
                                               memory_total))
-                self.publish('MemUsedPercentage',
+                self.publish('used',
+                             round(memory_used, 2),
+                             metric_type='GAUGE')
+
+                self.publish('used_percent',
                              round(memory_used_percent, 2),
                              metric_type='GAUGE')
 
                 value = diamond.convertor.binary.convert(
                     value=phymem_usage.free, oldUnit=units, newUnit=unit)
-                self.publish('MemFree', value, metric_type='GAUGE')
-
-                value = diamond.convertor.binary.convert(
-                    value=virtmem_usage.total, oldUnit=units, newUnit=unit)
-                self.publish('SwapTotal', value, metric_type='GAUGE')
-
-                value = diamond.convertor.binary.convert(
-                    value=virtmem_usage.free, oldUnit=units, newUnit=unit)
-                self.publish('SwapFree', value, metric_type='GAUGE')
+                self.publish('free', value, metric_type='GAUGE')
 
                 # TODO: We only support one unit node here. Fix it!
                 break

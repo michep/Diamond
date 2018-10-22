@@ -31,10 +31,10 @@ except ImportError:
     psutil = None
 
 
-class DiskSpaceCollector(diamond.collector.Collector):
+class MFMS_DiskSpaceCollector(diamond.collector.Collector):
 
     def get_default_config_help(self):
-        config_help = super(DiskSpaceCollector, self).get_default_config_help()
+        config_help = super(MFMS_DiskSpaceCollector, self).get_default_config_help()
         config_help.update({
             'filesystems': "filesystems to examine",
             'exclude_filters':
@@ -48,7 +48,7 @@ class DiskSpaceCollector(diamond.collector.Collector):
         """
         Returns the default collector settings
         """
-        config = super(DiskSpaceCollector, self).get_default_config()
+        config = super(MFMS_DiskSpaceCollector, self).get_default_config()
         config.update({
             'path': 'diskspace',
             # filesystems to examine
@@ -75,7 +75,7 @@ class DiskSpaceCollector(diamond.collector.Collector):
         return config
 
     def process_config(self):
-        super(DiskSpaceCollector, self).process_config()
+        super(MFMS_DiskSpaceCollector, self).process_config()
         # Precompile things
         self.exclude_filters = self.config['exclude_filters']
         if isinstance(self.exclude_filters, basestring):
@@ -169,7 +169,7 @@ class DiskSpaceCollector(diamond.collector.Collector):
                 self.log.error('Unable to import psutil')
                 return None
 
-            partitions = psutil.disk_partitions(False)
+            partitions = psutil.disk_partitions(False, self.filesystems)
             for partition in partitions:
                 result[len(result)] = {
                     'device': os.path.realpath(partition.device),
@@ -191,12 +191,7 @@ class DiskSpaceCollector(diamond.collector.Collector):
             if info['device'] in labels:
                 name = labels[info['device']]
             else:
-                name = info['mount_point'].replace('/', '_')
-                name = name.replace('.', '_').replace('\\', '')
-                if name == '_':
-                    name = 'root'
-                if name == '_tmp':
-                    name = 'tmp'
+                name = info['mount_point']
 
             if hasattr(os, 'statvfs'):  # POSIX
                 try:
@@ -230,38 +225,28 @@ class DiskSpaceCollector(diamond.collector.Collector):
             else:
                 raise NotImplementedError("platform not supported")
 
+            metric_prefix = self.config['path']
             for unit in self.config['byte_unit']:
-                metric_name = '%s.%s_percentfree' % (name, unit)
+                metric_name = '%s.percent' % (name)
                 metric_value = float(blocks_free) / float(
                     blocks_free + (blocks_total - blocks_free)) * 100
-                self.publish_gauge(metric_name, metric_value, 2)
+                self.publish_gauge(metric_name, metric_value, 2, metric_prefix=metric_prefix)
 
-                metric_name = '%s.%s_used' % (name, unit)
+                metric_name = '%s.used' % (name)
                 metric_value = float(block_size) * float(
                     blocks_total - blocks_free)
                 metric_value = diamond.convertor.binary.convert(
                     value=metric_value, oldUnit='byte', newUnit=unit)
-                self.publish_gauge(metric_name, metric_value, 2)
+                self.publish_gauge(metric_name, metric_value, 2, metric_prefix=metric_prefix)
 
-                metric_name = '%s.%s_free' % (name, unit)
+                metric_name = '%s.free' % (name)
                 metric_value = float(block_size) * float(blocks_free)
                 metric_value = diamond.convertor.binary.convert(
                     value=metric_value, oldUnit='byte', newUnit=unit)
-                self.publish_gauge(metric_name, metric_value, 2)
+                self.publish_gauge(metric_name, metric_value, 2, metric_prefix=metric_prefix)
 
-                if os.name != 'nt':
-                    metric_name = '%s.%s_avail' % (name, unit)
-                    metric_value = float(block_size) * float(blocks_avail)
-                    metric_value = diamond.convertor.binary.convert(
-                        value=metric_value, oldUnit='byte', newUnit=unit)
-                    self.publish_gauge(metric_name, metric_value, 2)
-
-            if os.name != 'nt':
-                if float(inodes_total) > 0:
-                    self.publish_gauge(
-                        '%s.inodes_percentfree' % name,
-                        float(inodes_free) / float(inodes_total) * 100)
-                self.publish_gauge('%s.inodes_used' % name,
-                                   inodes_total - inodes_free)
-                self.publish_gauge('%s.inodes_free' % name, inodes_free)
-                self.publish_gauge('%s.inodes_avail' % name, inodes_avail)
+                metric_name = '%s.total' % (name)
+                metric_value = float(block_size) * float(blocks_total)
+                metric_value = diamond.convertor.binary.convert(
+                    value=metric_value, oldUnit='byte', newUnit=unit)
+                self.publish_gauge(metric_name, metric_value, 2, metric_prefix=metric_prefix)
