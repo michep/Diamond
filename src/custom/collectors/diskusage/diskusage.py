@@ -57,7 +57,7 @@ class MFMS_DiskUsageCollector(diamond.collector.Collector):
         """
         config = super(MFMS_DiskUsageCollector, self).get_default_config()
         config.update({
-            'path':     'iostat',
+            'path':     'intel.iostat.device',
             'devices':  ('PhysicalDrive[0-9]+$' +
                          '|md[0-9]+$' +
                          '|sd[a-z]+[0-9]*$' +
@@ -163,6 +163,7 @@ class MFMS_DiskUsageCollector(diamond.collector.Collector):
             self.log.error('No diskspace metrics retrieved')
             return None
 
+        metric_prefix = self.config['path']
         for key, info in results.iteritems():
             metrics = {}
             name = info['device']
@@ -277,4 +278,4 @@ class MFMS_DiskUsageCollector(diamond.collector.Collector):
                 for key in metrics:
                     metric_name = '.'.join([info['device'], key]).replace(
                         '/', '_')
-                    self.publish(metric_name, metrics[key], precision=3, metric_prefix=self.path)
+                    self.publish(metric_name, metrics[key], precision=3, metric_prefix=metric_prefix)

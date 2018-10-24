@@ -79,6 +79,7 @@ high.
 
 from Handler import Handler
 from diamond.metric import Metric
+from diamond.collector import str_to_bool
 import urllib2
 import StringIO
 import gzip
@@ -86,6 +87,7 @@ import base64
 import json
 import re
 import contextlib
+import StringIO
 
 
 class MFMS_TSDBHandler(Handler):
@@ -135,7 +137,7 @@ class MFMS_TSDBHandler(Handler):
 
         self.skipAggregates = self.config['skipAggregates']
         self.cleanMetrics = self.config['cleanMetrics']
-        self.dryRun = int(self.config['dryRun'])
+        self.dryRun = str_to_bool(self.config['dryRun'])
 
     def get_default_config_help(self):
         """
@@ -189,6 +191,25 @@ class MFMS_TSDBHandler(Handler):
         """
         self.log.debug("Stopping TSDBHandler ...")
 
+    def _cleanup_value(self, text):
+        res = StringIO.StringIO()
+        for c in text:
+            if (c >='-' and c <= '9') or (c >= 'A' and c <= 'Z') or (c >= 'a' and c <= 'z'):
+                res.write(c)
+            elif c == '_':
+                res.write('__')
+            elif c == ':':
+                res.write('_.')
+            else:
+                res.write('%X' % ord(c))
+        return res.getvalue()
+
+    def cleanup_entry(self, entry):
+        entry['metric'] = self._cleanup_value(entry['metric'])
+        for tag in entry['tags']:
+            entry['tags'][tag] = self._cleanup_value(entry['tags'][tag])
+        return entry
+
     def process(self, metric):
         """
         Process a metric by sending it to TSDB
@@ -210,6 +231,8 @@ class MFMS_TSDBHandler(Handler):
 
         for [key, value] in self.tags:
             entry["tags"][key] = value
+
+        entry = self.cleanup_entry(entry)
 
         self.entrys.append(entry)
 
@@ -284,31 +307,23 @@ class MetricWrapper(Metric):
             self.aggregate = self.getMetricPath().split('.')[0] == 'total'
 
             cpuId = self.delegate.getMetricPath().split('.')[0]
-            self.tags["cpuId"] = cpuId
-            self.path = self.path.replace("."+cpuId+".", ".")
+            self.tags['cpuId'] = cpuId
+            self.path = self.path.replace('.'+cpuId+'.', '.')
 
     """
     Processes metrics of the DiskspaceCollector. It stores the mountpoint as a
     tag. There are no aggregates in this collector.
     """
     def processDiskspaceMetric(self):
-        self.logger.debug('!!!DEBUG processDiskspaceMetric()')
-        self.logger.debug('!!!DEBUG self = %s' % self)
-        self.logger.debug('!!!DEBUG self.path = %s' % self.path)
-        self.logger.debug('!!!DEBUG self.metric_prefix = %s' % self.metric_prefix)
-        self.logger.debug('!!!DEBUG self.getMetricPath().split("prefix") = %s' % self.path.split('.' + self.metric_prefix + '.'))
         elements = self.path.split('.' + self.metric_prefix + '.')
 
         if len(elements) == 2:
 
             mountpoint = elements[1].split('.')[0]
 
-            self.tags["mount_point"] = mountpoint
-            self.tags["device"] = "NA"
-            self.path = self.path.replace("."+mountpoint+".", ".")
-
-        self.logger.debug('!!!DEBUG NEW self.path = %s' % self.path)
-        self.logger.debug('!!!DEBUG NEW self.tags = %s' % self.tags)
+            self.tags['mount_point'] = mountpoint
+            self.tags['device'] = 'NA'
+            self.path = self.path.replace('.'+mountpoint+'.', '.')
 
     """
     Processes metrics of the DiskusageCollector. It stores the device as a
@@ -316,12 +331,10 @@ class MetricWrapper(Metric):
     """
     def processDiskusageMetric(self):
         if len(self.getMetricPath().split('.')) == 2:
-
             device = self.delegate.getMetricPath().split('.')[0]
-
-            self.tags["dev"] = device
-            self.tags["device_id"] = device
-            self.path = self.path.replace("."+device+".", ".")
+            self.tags['dev'] = device
+            self.tags['device_id'] = device
+            self.path = self.path.replace('.'+device+'.', '.')
 
     """
     Processes metrics of the NetworkCollector. It stores the interface as a
@@ -329,15 +342,23 @@ class MetricWrapper(Metric):
     """
     def processNetworkMetric(self):
         if len(self.getMetricPath().split('.')) == 2:
-
             interface = self.delegate.getMetricPath().split('.')[0]
+            self.tags['interface'] = interface
+            self.path = self.path.replace('.'+interface+'.', '.')
 
-            self.tags["interface"] = interface
-            self.path = self.path.replace("."+interface+".", ".")
+    def processHPArrayMetric(self):
+        elements = self.path.split('.' + self.metric_prefix + '.')
+
+        if len(elements) == 2:
+            path, sn, _ = elements[1].split('.')
+            self.tags['path'] = path
+            self.tags['serialnum'] = sn
+            self.path = self.path.replace('.'+path+'.'+sn+'.', '.')
 
     handlers = {'intel.psutil.cpu': processCpuMetric,
                 'intel.psutil.disk': processDiskspaceMetric,
                 'intel.psutil.iostat': processDiskusageMetric,
+                'mfms.hpacucli': processHPArrayMetric,
                 'default': processDefaultMetric}
 
     def __init__(self, delegate, logger):

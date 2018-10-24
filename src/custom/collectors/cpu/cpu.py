@@ -54,7 +54,7 @@ class MFMS_CPUCollector(diamond.collector.Collector):
         """
         config = super(MFMS_CPUCollector, self).get_default_config()
         config.update({
-            'path':     'cpu',
+            'path':     'intel.psutil.cpu',
             'percore':  'True',
             'xenfix':   None,
             'simple':   'False',
@@ -228,29 +228,29 @@ class MFMS_CPUCollector(diamond.collector.Collector):
                 div = cpu_count
 
             if use_derivative:
-                metrics['cpu_total.user'] = self.derivative(
-                    'cpu_total.user',
+                metrics['cpu-total.user'] = self.derivative(
+                    'cpu-total.user',
                     long(total_time.user),
                     self.MAX_VALUES['user']) / div
-                metrics['cpu_total.system'] = self.derivative(
-                    'cpu_total.system',
+                metrics['cpu-total.system'] = self.derivative(
+                    'cpu-total.system',
                     long(total_time.system),
                     self.MAX_VALUES['system']) / div
-                metrics['cpu_total.idle'] = self.derivative(
-                    'cpu_total.idle',
+                metrics['cpu-total.idle'] = self.derivative(
+                    'cpu-total.idle',
                     long(total_time.idle),
                     self.MAX_VALUES['idle']) / div
                 if hasattr(total_time, 'nice'):
-                    metrics['cpu_total.nice'] = self.derivative(
-                        'cpu_total.nice',
+                    metrics['cpu-total.nice'] = self.derivative(
+                        'cpu-total.nice',
                         long(total_time.nice),
                         self.MAX_VALUES['nice']) / div
             else:
-                metrics['cpu_total.user'] = long(total_time.user) / div
-                metrics['cpu_total.system'] = long(total_time.system) / div
-                metrics['cpu_total.idle'] = long(total_time.idle) / div
+                metrics['cpu-total.user'] = long(total_time.user) / div
+                metrics['cpu-total.system'] = long(total_time.system) / div
+                metrics['cpu-total.idle'] = long(total_time.idle) / div
                 if hasattr(total_time, 'nice'):
-                    metrics['total.nice'] = long(total_time.nice) / div
+                    metrics['cpu-total.nice'] = long(total_time.nice) / div
 
         # Publish Metric
         for metric_name in metrics.keys():

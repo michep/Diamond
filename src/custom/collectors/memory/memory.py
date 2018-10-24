@@ -62,7 +62,7 @@ class MFMS_MemoryCollector(diamond.collector.Collector):
         """
         config = super(MFMS_MemoryCollector, self).get_default_config()
         config.update({
-            'path': 'memory',
+            'path': 'intel.psutil.vm',
             'method': 'Threaded',
             'force_psutil': 'False'
             # Collect all the nodes or just a few standard ones?

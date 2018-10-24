@@ -50,7 +50,7 @@ class MFMS_DiskSpaceCollector(diamond.collector.Collector):
         """
         config = super(MFMS_DiskSpaceCollector, self).get_default_config()
         config.update({
-            'path': 'diskspace',
+            'path': 'intel.psutil.disk',
             # filesystems to examine
             'filesystems': 'ext2, ext3, ext4, xfs, glusterfs, nfs, nfs4, ' +
                            ' ntfs, hfs, fat32, fat16, btrfs',

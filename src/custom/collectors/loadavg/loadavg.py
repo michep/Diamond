@@ -35,7 +35,7 @@ class MFMS_LoadAverageCollector(diamond.collector.Collector):
         """
         config = super(MFMS_LoadAverageCollector, self).get_default_config()
         config.update({
-            'path':     'loadavg',
+            'path':     'intel.psutil.load',
             'simple':   'False'
         })
         return config
